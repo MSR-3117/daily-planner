@@ -65,3 +65,14 @@ export const settings = {
     update: (settingsData) =>
         request('/settings', { method: 'PUT', body: JSON.stringify(settingsData) }),
 };
+
+// Time Blocks API
+export const timeblocks = {
+    list: () => request('/timeblocks'),
+    create: (data) =>
+        request('/timeblocks', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id, data) =>
+        request(`/timeblocks/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    delete: (id) =>
+        request(`/timeblocks/${id}`, { method: 'DELETE' }),
+};

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { tasks as tasksApi } from '../utils/api';
+import { tasks as tasksApi, timeblocks as timeblocksApi } from '../utils/api';
 import './Planner.css';
 
 // Generate 30-min time slots from 5:00 AM to 11:30 PM
@@ -47,9 +47,14 @@ export function PlannerPage() {
     const [selectedPriority, setSelectedPriority] = useState('medium');
     const [selectedRecurrence, setSelectedRecurrence] = useState(null);
     const [expandedTask, setExpandedTask] = useState(null);
+    const [timeBlocks, setTimeBlocks] = useState([]);
+    const [showBlockModal, setShowBlockModal] = useState(false);
+    const [editingBlock, setEditingBlock] = useState(null);
+    const [newBlock, setNewBlock] = useState({ name: '', start_time: '09:00', end_time: '17:00', color: '#6366f1', icon: '📚' });
 
     useEffect(() => {
         loadTasks();
+        loadTimeBlocks();
     }, [date, viewMode]);
 
     // Keyboard shortcuts
@@ -116,6 +121,58 @@ export function PlannerPage() {
             days.push(newDate.toISOString().split('T')[0]);
         }
         return days;
+    };
+
+    const loadTimeBlocks = async () => {
+        try {
+            const response = await timeblocksApi.list();
+            setTimeBlocks(response.timeBlocks || []);
+        } catch (err) {
+            console.error('Failed to load time blocks:', err);
+        }
+    };
+
+    // Check if a time slot falls within any time block
+    const getBlockForSlot = (slot) => {
+        return timeBlocks.find(block => {
+            return slot >= block.start_time && slot < block.end_time;
+        });
+    };
+
+    // Time block CRUD handlers
+    const handleCreateBlock = async () => {
+        if (!newBlock.name || !newBlock.start_time || !newBlock.end_time) {
+            setError('Please fill in all required fields');
+            return;
+        }
+        try {
+            const response = await timeblocksApi.create(newBlock);
+            setTimeBlocks([...timeBlocks, response.timeBlock]);
+            setNewBlock({ name: '', start_time: '09:00', end_time: '17:00', color: '#6366f1', icon: '📚' });
+            setShowBlockModal(false);
+        } catch (err) {
+            setError(err.message);
+        }
+    };
+
+    const handleUpdateBlock = async () => {
+        if (!editingBlock) return;
+        try {
+            const response = await timeblocksApi.update(editingBlock.id, editingBlock);
+            setTimeBlocks(timeBlocks.map(b => b.id === editingBlock.id ? response.timeBlock : b));
+            setEditingBlock(null);
+        } catch (err) {
+            setError(err.message);
+        }
+    };
+
+    const handleDeleteBlock = async (blockId) => {
+        try {
+            await timeblocksApi.delete(blockId);
+            setTimeBlocks(timeBlocks.filter(b => b.id !== blockId));
+        } catch (err) {
+            setError(err.message);
+        }
     };
 
     const handleSlotInputChange = (slot, value) => {
@@ -355,6 +412,147 @@ export function PlannerPage() {
                 </div>
             </div>
 
+            {/* Time Blocks Bar */}
+            <div className="time-blocks-bar">
+                <div className="time-blocks-label">Time Blocks:</div>
+                <div className="time-blocks-list">
+                    {timeBlocks.map(block => (
+                        <div
+                            key={block.id}
+                            className="time-block-chip"
+                            style={{ '--block-color': block.color }}
+                            title={`${block.start_time} - ${block.end_time}`}
+                        >
+                            <span className="block-icon">{block.icon}</span>
+                            <span className="block-name">{block.name}</span>
+                            <span className="block-time">{block.start_time}-{block.end_time}</span>
+                        </div>
+                    ))}
+                    <button className="add-block-btn" onClick={() => setShowBlockModal(true)}>
+                        + Manage Blocks
+                    </button>
+                </div>
+            </div>
+
+            {/* Time Blocks Modal */}
+            {showBlockModal && (
+                <div className="modal-overlay" onClick={() => { setShowBlockModal(false); setEditingBlock(null); }}>
+                    <div className="modal-content time-blocks-modal" onClick={e => e.stopPropagation()}>
+                        <div className="modal-header">
+                            <h2>Manage Time Blocks</h2>
+                            <button className="modal-close" onClick={() => { setShowBlockModal(false); setEditingBlock(null); }}>×</button>
+                        </div>
+
+                        <div className="modal-body">
+                            {/* Existing Blocks */}
+                            <div className="existing-blocks">
+                                <h3>Your Time Blocks</h3>
+                                {timeBlocks.length === 0 ? (
+                                    <p className="no-blocks">No time blocks yet. Create one below!</p>
+                                ) : (
+                                    <div className="blocks-list">
+                                        {timeBlocks.map(block => (
+                                            <div key={block.id} className="block-item" style={{ '--block-color': block.color }}>
+                                                <div className="block-info">
+                                                    <span className="block-icon">{block.icon}</span>
+                                                    <span className="block-name">{block.name}</span>
+                                                    <span className="block-range">{block.start_time} - {block.end_time}</span>
+                                                </div>
+                                                <div className="block-actions">
+                                                    <button onClick={() => setEditingBlock({ ...block })}>Edit</button>
+                                                    <button className="delete-btn" onClick={() => handleDeleteBlock(block.id)}>Delete</button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Create/Edit Form */}
+                            <div className="block-form">
+                                <h3>{editingBlock ? 'Edit Block' : 'Create New Block'}</h3>
+                                <div className="form-row">
+                                    <label>Name:</label>
+                                    <input
+                                        type="text"
+                                        value={editingBlock ? editingBlock.name : newBlock.name}
+                                        onChange={e => editingBlock
+                                            ? setEditingBlock({ ...editingBlock, name: e.target.value })
+                                            : setNewBlock({ ...newBlock, name: e.target.value })
+                                        }
+                                        placeholder="e.g., College, Work, Gym"
+                                    />
+                                </div>
+                                <div className="form-row time-row">
+                                    <div>
+                                        <label>Start Time:</label>
+                                        <input
+                                            type="time"
+                                            value={editingBlock ? editingBlock.start_time : newBlock.start_time}
+                                            onChange={e => editingBlock
+                                                ? setEditingBlock({ ...editingBlock, start_time: e.target.value })
+                                                : setNewBlock({ ...newBlock, start_time: e.target.value })
+                                            }
+                                        />
+                                    </div>
+                                    <div>
+                                        <label>End Time:</label>
+                                        <input
+                                            type="time"
+                                            value={editingBlock ? editingBlock.end_time : newBlock.end_time}
+                                            onChange={e => editingBlock
+                                                ? setEditingBlock({ ...editingBlock, end_time: e.target.value })
+                                                : setNewBlock({ ...newBlock, end_time: e.target.value })
+                                            }
+                                        />
+                                    </div>
+                                </div>
+                                <div className="form-row">
+                                    <label>Color:</label>
+                                    <input
+                                        type="color"
+                                        value={editingBlock ? editingBlock.color : newBlock.color}
+                                        onChange={e => editingBlock
+                                            ? setEditingBlock({ ...editingBlock, color: e.target.value })
+                                            : setNewBlock({ ...newBlock, color: e.target.value })
+                                        }
+                                    />
+                                </div>
+                                <div className="form-row">
+                                    <label>Icon:</label>
+                                    <select
+                                        value={editingBlock ? editingBlock.icon : newBlock.icon}
+                                        onChange={e => editingBlock
+                                            ? setEditingBlock({ ...editingBlock, icon: e.target.value })
+                                            : setNewBlock({ ...newBlock, icon: e.target.value })
+                                        }
+                                    >
+                                        <option value="📚">📚 Study</option>
+                                        <option value="💼">💼 Work</option>
+                                        <option value="🏠">🏠 Home</option>
+                                        <option value="🏋️">🏋️ Exercise</option>
+                                        <option value="🍽️">🍽️ Meals</option>
+                                        <option value="😴">😴 Sleep</option>
+                                        <option value="🎮">🎮 Leisure</option>
+                                        <option value="🚗">🚗 Commute</option>
+                                    </select>
+                                </div>
+                                <div className="form-actions">
+                                    {editingBlock ? (
+                                        <>
+                                            <button className="cancel-btn" onClick={() => setEditingBlock(null)}>Cancel</button>
+                                            <button className="save-btn" onClick={handleUpdateBlock}>Save Changes</button>
+                                        </>
+                                    ) : (
+                                        <button className="create-btn" onClick={handleCreateBlock}>Create Block</button>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {error && <div className="planner-error">{error} <button onClick={() => setError('')}>×</button></div>}
 
             {/* Line Graph */}
@@ -380,18 +578,27 @@ export function PlannerPage() {
                 <div className="timeline-container">
                     {loading ? <div className="loading">Loading...</div> : (
                         <div className="timeline">
-                            {TIME_SLOTS.map((slot) => {
+                            {TIME_SLOTS.map((slot, slotIndex) => {
                                 const task = getTaskForSlot(slot);
                                 const isCurrentHour = new Date().getHours() === parseInt(slot.split(':')[0]) && isToday;
                                 const hasTask = !!task;
+                                const block = getBlockForSlot(slot);
+                                const isBlockStart = block && (slotIndex === 0 || !getBlockForSlot(TIME_SLOTS[slotIndex - 1]) || getBlockForSlot(TIME_SLOTS[slotIndex - 1])?.id !== block.id);
+                                const isBlockEnd = block && (slotIndex === TIME_SLOTS.length - 1 || !getBlockForSlot(TIME_SLOTS[slotIndex + 1]) || getBlockForSlot(TIME_SLOTS[slotIndex + 1])?.id !== block.id);
 
                                 return (
                                     <div
                                         key={slot}
-                                        className={`timeline-slot ${isCurrentHour ? 'current' : ''} ${hasTask ? 'has-task' : ''} ${draggedTask ? 'drop-target' : ''}`}
+                                        className={`timeline-slot ${isCurrentHour ? 'current' : ''} ${hasTask ? 'has-task' : ''} ${draggedTask ? 'drop-target' : ''} ${block ? 'in-block' : ''} ${isBlockStart ? 'block-start' : ''} ${isBlockEnd ? 'block-end' : ''}`}
+                                        style={block ? { '--block-color': block.color } : {}}
                                         onDragOver={handleDragOver}
                                         onDrop={(e) => handleDrop(e, slot)}
                                     >
+                                        {isBlockStart && (
+                                            <div className="block-label" style={{ backgroundColor: block.color }}>
+                                                {block.icon} {block.name}
+                                            </div>
+                                        )}
                                         <div className="slot-time">{slot}</div>
                                         <div className="slot-line">
                                             {hasTask && <div className={`slot-marker ${task.status === 'done' ? 'completed' : 'pending'}`} style={{ borderColor: getCategoryColor(task.category) }}></div>}
