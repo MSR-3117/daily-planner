@@ -8,7 +8,7 @@ const API_URL = import.meta.env.VITE_API_URL || (
 async function request(endpoint, options = {}) {
     // On Vercel, prepend /api to endpoints
     const url = API_URL === '/api'
-        ? `/api${endpoint.replace(/^\//, '')}`
+        ? `/api${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`
         : `${API_URL}${endpoint}`;
 
     const response = await fetch(url, {
