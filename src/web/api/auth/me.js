@@ -1,18 +1,24 @@
-import { validateSession, getSessionToken, json } from '../_auth.js';
+import { validateSession, getSessionToken, sendJson, setCorsHeaders } from '../_auth.js';
 
 export const config = { runtime: 'nodejs' };
 
-export default async function handler(req) {
+export default async function handler(req, res) {
     if (req.method === 'OPTIONS') {
-        return json({});
+        setCorsHeaders(res);
+        return res.status(200).end();
     }
 
-    const token = getSessionToken(req);
-    const session = await validateSession(token);
+    try {
+        const token = getSessionToken(req);
+        const session = await validateSession(token);
 
-    if (session) {
-        return json({ authenticated: true, userId: session.userId });
+        if (session) {
+            return sendJson(res, { authenticated: true, userId: session.userId });
+        }
+
+        return sendJson(res, { authenticated: false }, 200);
+    } catch (error) {
+        console.error('Auth check error:', error);
+        return sendJson(res, { error: 'Internal server error' }, 500);
     }
-
-    return json({ authenticated: false }, 200);
 }

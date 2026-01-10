@@ -44,9 +44,9 @@ export async function deleteSession(token) {
     await db.execute({ sql: 'DELETE FROM sessions WHERE id = ?', args: [token] });
 }
 
-// Get session from request
+// Get session from request (Node.js format)
 export function getSessionToken(req) {
-    const cookie = req.headers.get('cookie') || '';
+    const cookie = req.headers.cookie || '';
     const match = cookie.match(/session=([^;]+)/);
     return match ? match[1] : null;
 }
@@ -61,24 +61,19 @@ export function clearSessionCookie() {
     return 'session=; Path=/; HttpOnly; SameSite=Strict; Secure; Max-Age=0';
 }
 
-// CORS headers
-export function corsHeaders() {
-    return {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type',
-        'Access-Control-Allow-Credentials': 'true',
-    };
+// CORS headers helper for Node.js
+export function setCorsHeaders(res) {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
 }
 
-// JSON response helper
-export function json(data, status = 200, headers = {}) {
-    return new Response(JSON.stringify(data), {
-        status,
-        headers: {
-            'Content-Type': 'application/json',
-            ...corsHeaders(),
-            ...headers,
-        },
+// JSON response helper for Node.js
+export function sendJson(res, data, status = 200, extraHeaders = {}) {
+    setCorsHeaders(res);
+    Object.entries(extraHeaders).forEach(([key, value]) => {
+        res.setHeader(key, value);
     });
+    res.status(status).json(data);
 }

@@ -1,50 +1,55 @@
 import { db, initializeDatabase } from '../_db.js';
-import { createSession, json, setSessionCookie } from '../_auth.js';
+import { createSession, sendJson, setSessionCookie, setCorsHeaders } from '../_auth.js';
+import crypto from 'crypto';
 
 export const config = { runtime: 'nodejs' };
 
-export default async function handler(req) {
+export default async function handler(req, res) {
     if (req.method === 'OPTIONS') {
-        return json({});
+        setCorsHeaders(res);
+        return res.status(200).end();
     }
 
-    await initializeDatabase();
+    try {
+        await initializeDatabase();
 
-    const { email, password } = await req.json();
+        const { email, password } = req.body;
 
-    if (!email || !password) {
-        return json({ error: 'Email and password are required' }, 400);
+        if (!email || !password) {
+            return sendJson(res, { error: 'Email and password are required' }, 400);
+        }
+
+        // Find user
+        const result = await db.execute({
+            sql: 'SELECT id, password_hash FROM users WHERE email = ?',
+            args: [email],
+        });
+
+        if (result.rows.length === 0) {
+            return sendJson(res, { error: 'Invalid email or password' }, 401);
+        }
+
+        const user = result.rows[0];
+
+        // Verify password using Node.js crypto
+        const salt = process.env.PASSWORD_SALT || 'default-salt';
+        const passwordHash = crypto.createHash('sha256').update(password + salt).digest('hex');
+
+        if (passwordHash !== user.password_hash) {
+            return sendJson(res, { error: 'Invalid email or password' }, 401);
+        }
+
+        // Create session
+        const { token, expiresAt } = await createSession(user.id);
+
+        return sendJson(
+            res,
+            { message: 'Login successful', userId: user.id },
+            200,
+            { 'Set-Cookie': setSessionCookie(token, expiresAt) }
+        );
+    } catch (error) {
+        console.error('Login error:', error);
+        return sendJson(res, { error: 'Internal server error' }, 500);
     }
-
-    // Find user
-    const result = await db.execute({
-        sql: 'SELECT id, password_hash FROM users WHERE email = ?',
-        args: [email],
-    });
-
-    if (result.rows.length === 0) {
-        return json({ error: 'Invalid email or password' }, 401);
-    }
-
-    const user = result.rows[0];
-
-    // Verify password
-    const encoder = new TextEncoder();
-    const data = encoder.encode(password + process.env.PASSWORD_SALT || 'default-salt');
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    const passwordHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-
-    if (passwordHash !== user.password_hash) {
-        return json({ error: 'Invalid email or password' }, 401);
-    }
-
-    // Create session
-    const { token, expiresAt } = await createSession(user.id);
-
-    return json(
-        { message: 'Login successful', userId: user.id },
-        200,
-        { 'Set-Cookie': setSessionCookie(token, expiresAt) }
-    );
 }
