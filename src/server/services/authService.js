@@ -93,27 +93,9 @@ async function refreshTokens(token) {
 
 /**
  * Handle Google OAuth user sign in or creation
+ * Passport has already found or created the user document
  */
-async function handleGoogleOAuth(profile) {
-    let user = await User.findOne({ email: profile.emails[0].value });
-
-    if (user) {
-        if (user.provider !== 'google') {
-            user.provider = 'google';
-            if (!user.avatar && profile.photos && profile.photos.length > 0) {
-                user.avatar = profile.photos[0].value;
-            }
-            await user.save();
-        }
-    } else {
-        user = await User.create({
-            email: profile.emails[0].value,
-            name: profile.displayName,
-            avatar: profile.photos && profile.photos.length > 0 ? profile.photos[0].value : '',
-            provider: 'google',
-        });
-    }
-
+async function handleGoogleOAuth(user) {
     const accessToken = generateAccessToken(user);
     const refreshToken = generateRefreshToken(user);
 
