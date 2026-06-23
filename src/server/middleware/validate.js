@@ -71,30 +71,33 @@ const validateTaskCreate = [
         .isDate()
         .withMessage('Valid due_date is required in YYYY-MM-DD format'),
     body('scheduled_time')
-        .optional()
+        .optional({ nullable: true, checkFalsy: true })
         .matches(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/)
         .withMessage('scheduled_time must be in HH:MM format'),
-    body('duration_minutes')
-        .optional()
-        .isInt({ min: 0 })
-        .withMessage('duration_minutes must be a positive integer'),
     body('priority')
         .optional()
-        .isInt({ min: 0, max: 2 })
-        .withMessage('priority must be between 0 and 2'),
+        .isIn(['high', 'medium', 'low'])
+        .withMessage('priority must be high, medium, or low'),
     body('status')
         .optional()
         .isIn(['todo', 'done'])
         .withMessage('status must be todo or done'),
-    body('recurring_pattern')
-        .optional()
-        .isIn(['none', 'daily', 'weekly', 'monthly'])
-        .withMessage('Invalid recurring_pattern'),
+    body('recurrence')
+        .optional({ nullable: true })
+        .isIn(['daily', 'weekly', 'monthly'])
+        .withMessage('Invalid recurrence pattern'),
+    body('recurrence_end')
+        .optional({ nullable: true })
+        .isDate()
+        .withMessage('recurrence_end must be a valid date'),
     body('category')
         .optional()
         .trim()
         .isLength({ max: 50 })
         .withMessage('Category must be under 50 characters'),
+    body('notes')
+        .optional({ nullable: true })
+        .trim(),
     handleValidationErrors
 ];
 
@@ -111,33 +114,36 @@ const validateTaskUpdate = [
         .isDate()
         .withMessage('Valid due_date is required in YYYY-MM-DD format'),
     body('scheduled_time')
-        .optional({ nullable: true })
+        .optional({ nullable: true, checkFalsy: true })
         .custom((value) => {
             if (value === null || value === '') return true;
             return /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(value);
         })
         .withMessage('scheduled_time must be in HH:MM format or null'),
-    body('duration_minutes')
-        .optional({ nullable: true })
-        .isInt({ min: 0 })
-        .withMessage('duration_minutes must be a positive integer'),
     body('priority')
         .optional()
-        .isInt({ min: 0, max: 2 })
-        .withMessage('priority must be between 0 and 2'),
+        .isIn(['high', 'medium', 'low'])
+        .withMessage('priority must be high, medium, or low'),
     body('status')
         .optional()
         .isIn(['todo', 'done'])
         .withMessage('status must be todo or done'),
-    body('recurring_pattern')
-        .optional()
-        .isIn(['none', 'daily', 'weekly', 'monthly'])
-        .withMessage('Invalid recurring_pattern'),
+    body('recurrence')
+        .optional({ nullable: true })
+        .isIn(['daily', 'weekly', 'monthly'])
+        .withMessage('Invalid recurrence pattern'),
+    body('recurrence_end')
+        .optional({ nullable: true })
+        .isDate()
+        .withMessage('recurrence_end must be a valid date'),
     body('category')
         .optional({ nullable: true })
         .trim()
         .isLength({ max: 50 })
         .withMessage('Category must be under 50 characters'),
+    body('notes')
+        .optional({ nullable: true })
+        .trim(),
     handleValidationErrors
 ];
 
