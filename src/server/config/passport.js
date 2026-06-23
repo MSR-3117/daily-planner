@@ -7,10 +7,8 @@ passport.use(
         {
             clientID: process.env.GOOGLE_CLIENT_ID || 'dummy',
             clientSecret: process.env.GOOGLE_CLIENT_SECRET || 'dummy',
-            // Set callbackURL to absolute URL for Vercel, or relative for local Express
-            callbackURL: process.env.NODE_ENV === 'production'
-                ? 'https://your-vercel-app.vercel.app/api/auth/google/callback'
-                : '/api/auth/google/callback',
+            callbackURL: '/api/auth/google/callback',
+            proxy: true, // Required for Vercel/Render to trust X-Forwarded-Proto and use https
             passReqToCallback: true,
         },
         async (req, accessToken, refreshToken, profile, done) => {
