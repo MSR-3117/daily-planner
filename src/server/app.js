@@ -11,6 +11,9 @@ const debugRoutes = require('./routes/debug');
 
 const app = express();
 
+// Trust reverse proxy (Vercel) for rate limiting and OAuth HTTPS detection
+app.set('trust proxy', 1);
+
 // Security headers
 app.use(helmet());
 
